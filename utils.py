@@ -45,8 +45,8 @@ def HTTPCurrentDate():
 try:
 	import sqlite3
 except:
-	print "[!] Please install python-sqlite3 extension."
-	sys.exit(0)
+	sqlite3 = False
+	print "[!] Please install python-sqlite3 extension. Logging to database will be unavailable"
 
 def color(txt, code = 1, modifier = 0):
 	if txt.startswith('[*]'):
@@ -159,11 +159,12 @@ def DumpConfig(outfile, data):
 
 def SaveToDb(result):
 	# Creating the DB if it doesn't exist
-	if not os.path.exists(settings.Config.DatabaseFile):
-		cursor = sqlite3.connect(settings.Config.DatabaseFile)
-		cursor.execute('CREATE TABLE responder (timestamp varchar(32), module varchar(16), type varchar(16), client varchar(32), hostname varchar(32), user varchar(32), cleartext varchar(128), hash varchar(512), fullhash varchar(512))')
-		cursor.commit()
-		cursor.close()
+	if sqlite3:
+		if not os.path.exists(settings.Config.DatabaseFile):
+			cursor = sqlite3.connect(settings.Config.DatabaseFile)
+			cursor.execute('CREATE TABLE responder (timestamp varchar(32), module varchar(16), type varchar(16), client varchar(32), hostname varchar(32), user varchar(32), cleartext varchar(128), hash varchar(512), fullhash varchar(512))')
+			cursor.commit()
+			cursor.close()
 
 	for k in [ 'module', 'type', 'client', 'hostname', 'user', 'cleartext', 'hash', 'fullhash' ]:
 		if not k in result:
@@ -179,10 +180,20 @@ def SaveToDb(result):
 	
 	logfile = os.path.join(settings.Config.ResponderPATH, 'logs', fname)
 
-	cursor = sqlite3.connect(settings.Config.DatabaseFile)
-	cursor.text_factory = sqlite3.Binary  # We add a text factory to support different charsets
-	res = cursor.execute("SELECT COUNT(*) AS count FROM responder WHERE module=? AND type=? AND client=? AND LOWER(user)=LOWER(?)", (result['module'], result['type'], result['client'], result['user']))
-	(count,) = res.fetchone()
+	if sqlite3:
+		cursor = sqlite3.connect(settings.Config.DatabaseFile)
+		cursor.text_factory = sqlite3.Binary  # We add a text factory to support different charsets
+		res = cursor.execute("SELECT COUNT(*) AS count FROM responder WHERE module=? AND type=? AND client=? AND LOWER(user)=LOWER(?)", (result['module'], result['type'], result['client'], result['user']))
+		(count,) = res.fetchone()
+	else:
+		logf = open(logfile, 'rb')
+		data = logf.read()
+		logf.close()
+
+		# What could possibly go wrong. Checking existence of hash in respective log file
+		user_to_find = result['user'].encode('utf8', 'replace').split('\\', 1)
+		user_to_find = '%s::%s' % (user_to_find[1], user_to_find[0])   # Username::domain
+		count = len(re.findall('(?msi)^' + re.escape(user_to_find), data))
 
 	if not count:
 		outf = open(logfile,"a")
@@ -192,8 +203,9 @@ def SaveToDb(result):
 			outf.write(result['fullhash'].encode('utf8', 'replace') + '\n')
 		outf.close()
 
-		cursor.execute("INSERT INTO responder VALUES(datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)", (result['module'], result['type'], result['client'], result['hostname'], result['user'], result['cleartext'], result['hash'], result['fullhash']))
-		cursor.commit()
+		if sqlite3:
+			cursor.execute("INSERT INTO responder VALUES(datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)", (result['module'], result['type'], result['client'], result['hostname'], result['user'], result['cleartext'], result['hash'], result['fullhash']))
+			cursor.commit()
 
 	if settings.Config.CaptureMultipleHashFromSameHost:
 		outf = open(logfile,"a")
@@ -231,9 +243,11 @@ def SaveToDb(result):
 	else:
 		print color('[*] Skipping previously captured hash for %s' % result['user'], 3, 1)
 		text('[*] Skipping previously captured hash for %s' % result['user'])
-		cursor.execute("UPDATE responder SET timestamp=datetime('now') WHERE user=? AND client=?", (result['user'], result['client']))
-		cursor.commit()
-	cursor.close()
+		if sqlite3:
+			cursor.execute("UPDATE responder SET timestamp=datetime('now') WHERE user=? AND client=?", (result['user'], result['client']))
+			cursor.commit()
+	if sqlite3:
+		cursor.close()
 
 
 def Parse_IPV6_Addr(data):
