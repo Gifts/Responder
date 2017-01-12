@@ -236,17 +236,17 @@ class HTTP_Proxy(BaseHTTPServer.BaseHTTPRequestHandler):
 			soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 		try:
-			if self._connect_to(self.path, soc):
-				self.wfile.write(self.protocol_version +" 200 Connection established\r\n")
-				self.wfile.write("Proxy-agent: %s\r\n" % self.version_string())
-				self.wfile.write("\r\n")
-				try:
-					self._read_write(soc, 300)
-				except:
-					pass
-		except:
-			pass
-
+			try:
+				if self._connect_to(self.path, soc):
+					self.wfile.write(self.protocol_version +" 200 Connection established\r\n")
+					self.wfile.write("Proxy-agent: %s\r\n" % self.version_string())
+					self.wfile.write("\r\n")
+					try:
+						self._read_write(soc, 300)
+					except:
+						pass
+			except:
+				pass
 		finally:
 			soc.close()
 			self.connection.close()
@@ -266,36 +266,36 @@ class HTTP_Proxy(BaseHTTPServer.BaseHTTPRequestHandler):
 			soc = self.socket_proxy(socket.AF_INET, socket.SOCK_STREAM)
 		else:
 			soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
 		try:
-			URL_Unparse = urlparse.urlunparse(('', '', path, params, query, ''))
+			try:
+				URL_Unparse = urlparse.urlunparse(('', '', path, params, query, ''))
 
-			if self._connect_to(netloc, soc):
-				soc.send("%s %s %s\r\n" % (self.command, URL_Unparse, self.request_version))
+				if self._connect_to(netloc, soc):
+					soc.send("%s %s %s\r\n" % (self.command, URL_Unparse, self.request_version))
 
-				Cookie = self.headers['Cookie'] if "Cookie" in self.headers else ''
+					Cookie = self.headers.get('Cookie', '')
 
-				if settings.Config.Verbose:
-					print text("[PROXY] Client        : %s" % color(self.client_address[0], 3))
-					print text("[PROXY] Requested URL : %s" % color(self.path, 3))
-					print text("[PROXY] Cookie        : %s" % Cookie)
+					if settings.Config.Verbose:
+						print text("[PROXY] Client        : %s" % color(self.client_address[0], 3))
+						print text("[PROXY] Requested URL : %s" % color(self.path, 3))
+						print text("[PROXY] Cookie        : %s" % Cookie)
 
-				self.headers['Connection'] = 'close'
-				del self.headers['Proxy-Connection']
-				del self.headers['If-Range']
-				del self.headers['Range']
-				
-				for k, v in self.headers.items():
-					soc.send("%s: %s\r\n" % (k.title(), v))
-				soc.send("\r\n")
+					self.headers['Connection'] = 'close'
+					del self.headers['Proxy-Connection']
+					del self.headers['If-Range']
+					del self.headers['Range']
 
-				try:
-					self._read_write(soc, netloc)
-				except:
-					pass
+					for k, v in self.headers.items():
+						soc.send("%s: %s\r\n" % (k.title(), v))
+					soc.send("\r\n")
 
-		except:
-			pass
+					try:
+						self._read_write(soc, netloc)
+					except:
+						pass
+
+			except:
+				pass
 
 		finally:
 			soc.close()

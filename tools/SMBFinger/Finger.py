@@ -20,7 +20,7 @@ from odict import OrderedDict
 
 __version__ = "0.3"
 Timeout = 0.5
-class Packet():
+class Packet:
     fields = OrderedDict([
     ])
     def __init__(self, **kw):
@@ -220,8 +220,9 @@ def ShowResults(Host):
        Signing, OsVer, LanManClient = SmbFinger(Host)
        enabled  = color("SMB signing is mandatory. Choose another target", 1, 1)
        disabled = color("SMB signing: False", 2, 1)
+       disabled_enabled = (disabled, enabled)
        print color("Retrieving information for %s..."%Host[0], 8, 1)
-       print enabled if Signing else disabled
+       print disabled_enabled[Signing]
        print color("Os version: '%s'"%(OsVer), 8, 3)
        print color("Hostname: '%s'\nPart of the '%s' domain"%(Hostname, DomainJoined), 8, 3)
     except:

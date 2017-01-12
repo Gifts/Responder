@@ -15,13 +15,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import optparse
-import ssl
 
 from SocketServer import TCPServer, UDPServer, ThreadingMixIn
 from threading import Thread
 from utils import *
 import struct
 banner()
+
+try:
+	import ssl
+except ImportError:
+	ssl = False
+	print color("[!] Module 'ssl' is unavailable. HTTPS is disabled")
 
 parser = optparse.OptionParser(usage='python %prog -I eth0 -w -r -f\nor:\npython %prog -I eth0 -wrf', version=settings.__version__, prog=sys.argv[0])
 parser.add_option('-A','--analyze',        action="store_true", help="Analyze mode. This option allows you to see NBT-NS, BROWSER, LLMNR requests without responding.", dest="Analyze", default=False)
@@ -35,7 +40,7 @@ parser.add_option('-r', '--wredir',        action="store_true", help="Enable ans
 parser.add_option('-d', '--NBTNSdomain',   action="store_true", help="Enable answers for netbios domain suffix queries. Answering to domain suffixes will likely break stuff on the network. Default: False", dest="NBTNSDomain", default=False)
 parser.add_option('-f','--fingerprint',    action="store_true", help="This option allows you to fingerprint a host that issued an NBT-NS or LLMNR query.", dest="Finger", default=False)
 parser.add_option('-w','--wpad',           action="store_true", help="Start the WPAD rogue proxy server. Default value is False", dest="WPAD_On_Off", default=False)
-parser.add_option('-u','--upstream-proxy', action="store",      help="Upstream HTTP proxy used by the rogue WPAD Proxy for outgoing requests (format: host:port)", dest="Upstream_Proxy", default=None)
+parser.add_option('-u','--upstream-proxy', action="store",      help="Upstream HTTP proxy used by the rogue WPAD Proxy for outgoing requests (format: host:port)", dest="Upstream_Proxy", default=False)
 parser.add_option('-F','--ForceWpadAuth',  action="store_true", help="Force NTLM/Basic authentication on wpad.dat file retrieval. This may cause a login prompt. Default: False", dest="Force_WPAD_Auth", default=False)
 
 parser.add_option('-P','--ProxyAuth',       action="store_true", help="Force NTLM (transparently)/Basic (prompt) authentication for the proxy. WPAD doesn't need to be ON. This option is highly effective when combined with -r. Default: False", dest="ProxyAuth_On_Off", default=False)
@@ -237,7 +242,7 @@ def main():
 			from servers.HTTP import HTTP
 			threads.append(Thread(target=serve_thread_tcp, args=('', 80, HTTP,)))
 
-		if settings.Config.SSL_On_Off:
+		if settings.Config.SSL_On_Off and ssl:
 			from servers.HTTP import HTTPS
 			threads.append(Thread(target=serve_thread_SSL, args=('', 443, HTTPS,)))
 

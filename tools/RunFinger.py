@@ -38,7 +38,7 @@ Timeout = 2
 Host = options.TARGET
 Grep = options.Grep
 
-class Packet():
+class Packet:
     fields = OrderedDict([
     ])
     def __init__(self, **kw):

@@ -22,7 +22,7 @@ from odict import OrderedDict
 from utils import HTTPCurrentDate, RespondWithIPAton
 
 # Packet class handling all packet generation (see odict.py).
-class Packet():
+class Packet:
 	fields = OrderedDict([
 		("data", ""),
 	])

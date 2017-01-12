@@ -23,6 +23,11 @@ import time
 import settings
 import datetime
 
+try:
+	import ssl
+except ImportError:
+	ssl = False
+
 def RandomChallenge():
     if settings.Config.NumChal == "random":
        from random import getrandbits
@@ -130,21 +135,27 @@ def FindLocalIP(Iface, OURIP):
 def WriteData(outfile, data, user):
 	logging.info("[*] Captured Hash: %s" % data)
 	if not os.path.isfile(outfile):
-		with open(outfile,"w") as outf:
-			outf.write(data + '\n')
+		outf = open(outfile,"w")
+		outf.write(data + '\n')
+		outf.close()
 		return
-	with open(outfile,"r") as filestr:
+	filestr = open(outfile,"r")
+	try:
 		if re.search(user.encode('hex'), filestr.read().encode('hex')):
 			return False
 		elif re.search(re.escape("$"), user):
 			return False
-	with open(outfile,"a") as outf2:
-		outf2.write(data + '\n')
+	finally:
+		filestr.close()
+	outf2 = open(outfile,"a")
+	outf2.write(data + '\n')
+	outf2.close()
 
 # Function used to write debug config and network info.
 def DumpConfig(outfile, data):
-	with open(outfile,"a") as dump:
-		dump.write(data + '\n')
+	dump = open(outfile,"a")
+	dump.write(data + '\n')
+	dump.close()
 
 def SaveToDb(result):
 	# Creating the DB if it doesn't exist
@@ -172,23 +183,25 @@ def SaveToDb(result):
 	cursor.text_factory = sqlite3.Binary  # We add a text factory to support different charsets
 	res = cursor.execute("SELECT COUNT(*) AS count FROM responder WHERE module=? AND type=? AND client=? AND LOWER(user)=LOWER(?)", (result['module'], result['type'], result['client'], result['user']))
 	(count,) = res.fetchone()
-        
+
 	if not count:
-		with open(logfile,"a") as outf:
-			if len(result['cleartext']):  # If we obtained cleartext credentials, write them to file
-				outf.write('%s:%s\n' % (result['user'].encode('utf8', 'replace'), result['cleartext'].encode('utf8', 'replace')))
-			else:  # Otherwise, write JtR-style hash string to file
-				outf.write(result['fullhash'].encode('utf8', 'replace') + '\n')
+		outf = open(logfile,"a")
+		if len(result['cleartext']):  # If we obtained cleartext credentials, write them to file
+			outf.write('%s:%s\n' % (result['user'].encode('utf8', 'replace'), result['cleartext'].encode('utf8', 'replace')))
+		else:  # Otherwise, write JtR-style hash string to file
+			outf.write(result['fullhash'].encode('utf8', 'replace') + '\n')
+		outf.close()
 
 		cursor.execute("INSERT INTO responder VALUES(datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)", (result['module'], result['type'], result['client'], result['hostname'], result['user'], result['cleartext'], result['hash'], result['fullhash']))
 		cursor.commit()
 
-        if settings.Config.CaptureMultipleHashFromSameHost:
-		with open(logfile,"a") as outf:
-			if len(result['cleartext']):  # If we obtained cleartext credentials, write them to file
-				outf.write('%s:%s\n' % (result['user'].encode('utf8', 'replace'), result['cleartext'].encode('utf8', 'replace')))
-			else:  # Otherwise, write JtR-style hash string to file
-				outf.write(result['fullhash'].encode('utf8', 'replace') + '\n')
+	if settings.Config.CaptureMultipleHashFromSameHost:
+		outf = open(logfile,"a")
+		if len(result['cleartext']):  # If we obtained cleartext credentials, write them to file
+			outf.write('%s:%s\n' % (result['user'].encode('utf8', 'replace'), result['cleartext'].encode('utf8', 'replace')))
+		else:  # Otherwise, write JtR-style hash string to file
+			outf.write(result['fullhash'].encode('utf8', 'replace') + '\n')
+		outf.close()
 
 	if not count or settings.Config.Verbose:  # Print output
 		if len(result['client']):
@@ -280,6 +293,9 @@ def banner():
 def StartupMessage():
 	enabled  = color('[ON]', 2, 1) 
 	disabled = color('[OFF]', 1, 1)
+	unavailable = color('[UNAVAILABLE]', 3, 1)
+
+	disabled_enabled = (disabled, enabled)
 
 	print ""
 	print color("[+] ", 2, 1) + "Poisoners:"
@@ -289,35 +305,38 @@ def StartupMessage():
 	print ""
 
 	print color("[+] ", 2, 1) + "Servers:"
-	print '    %-27s' % "HTTP server" + (enabled if settings.Config.HTTP_On_Off else disabled)
-	print '    %-27s' % "HTTPS server" + (enabled if settings.Config.SSL_On_Off else disabled)
-	print '    %-27s' % "WPAD proxy" + (enabled if settings.Config.WPAD_On_Off else disabled)
-	print '    %-27s' % "Auth proxy" + (enabled if settings.Config.ProxyAuth_On_Off else disabled)
-	print '    %-27s' % "SMB server" + (enabled if settings.Config.SMB_On_Off else disabled)
-	print '    %-27s' % "Kerberos server" + (enabled if settings.Config.Krb_On_Off else disabled)
-	print '    %-27s' % "SQL server" + (enabled if settings.Config.SQL_On_Off else disabled)
-	print '    %-27s' % "FTP server" + (enabled if settings.Config.FTP_On_Off else disabled)
-	print '    %-27s' % "IMAP server" + (enabled if settings.Config.IMAP_On_Off else disabled)
-	print '    %-27s' % "POP3 server" + (enabled if settings.Config.POP_On_Off else disabled)
-	print '    %-27s' % "SMTP server" + (enabled if settings.Config.SMTP_On_Off else disabled)
-	print '    %-27s' % "DNS server" + (enabled if settings.Config.DNS_On_Off else disabled)
-	print '    %-27s' % "LDAP server" + (enabled if settings.Config.LDAP_On_Off else disabled)
+	print '    %-27s' % "HTTP server" + disabled_enabled[settings.Config.HTTP_On_Off]
+	if not ssl and settings.Config.SSL_On_Off:
+		print '    %-27s' % "HTTPS server" + unavailable
+	else:
+		print '    %-27s' % "HTTPS server" + disabled_enabled[settings.Config.SSL_On_Off]
+	print '    %-27s' % "WPAD proxy" + disabled_enabled[settings.Config.WPAD_On_Off]
+	print '    %-27s' % "Auth proxy" + disabled_enabled[settings.Config.ProxyAuth_On_Off]
+	print '    %-27s' % "SMB server" + disabled_enabled[settings.Config.SMB_On_Off]
+	print '    %-27s' % "Kerberos server" + disabled_enabled[settings.Config.Krb_On_Off]
+	print '    %-27s' % "SQL server" + disabled_enabled[settings.Config.SQL_On_Off]
+	print '    %-27s' % "FTP server" + disabled_enabled[settings.Config.FTP_On_Off]
+	print '    %-27s' % "IMAP server" + disabled_enabled[settings.Config.IMAP_On_Off]
+	print '    %-27s' % "POP3 server" + disabled_enabled[settings.Config.POP_On_Off]
+	print '    %-27s' % "SMTP server" + disabled_enabled[settings.Config.SMTP_On_Off]
+	print '    %-27s' % "DNS server" + disabled_enabled[settings.Config.DNS_On_Off]
+	print '    %-27s' % "LDAP server" + disabled_enabled[settings.Config.LDAP_On_Off]
 	print ""
 
 	print color("[+] ", 2, 1) + "HTTP Options:"
-	print '    %-27s' % "Always serving EXE" + (enabled if settings.Config.Serve_Always else disabled)
-	print '    %-27s' % "Serving EXE" + (enabled if settings.Config.Serve_Exe else disabled)
-	print '    %-27s' % "Serving HTML" + (enabled if settings.Config.Serve_Html else disabled)
-	print '    %-27s' % "Upstream Proxy" + (enabled if settings.Config.Upstream_Proxy else disabled)
+	print '    %-27s' % "Always serving EXE" + disabled_enabled[settings.Config.Serve_Always]
+	print '    %-27s' % "Serving EXE" + disabled_enabled[settings.Config.Serve_Exe]
+	print '    %-27s' % "Serving HTML" + disabled_enabled[settings.Config.Serve_Html]
+	print '    %-27s' % "Upstream Proxy" + disabled_enabled[settings.Config.Upstream_Proxy]
 	#print '    %-27s' % "WPAD script" + settings.Config.WPAD_Script
 	print ""
 
 	print color("[+] ", 2, 1) + "Poisoning Options:"
-	print '    %-27s' % "Analyze Mode" + (enabled if settings.Config.AnalyzeMode else disabled)
-	print '    %-27s' % "Force WPAD auth" + (enabled if settings.Config.Force_WPAD_Auth else disabled)
-	print '    %-27s' % "Force Basic Auth" + (enabled if settings.Config.Basic else disabled)
-	print '    %-27s' % "Force LM downgrade" + (enabled if settings.Config.LM_On_Off == True else disabled)
-	print '    %-27s' % "Fingerprint hosts" + (enabled if settings.Config.Finger_On_Off == True else disabled)
+	print '    %-27s' % "Analyze Mode" + disabled_enabled[settings.Config.AnalyzeMode]
+	print '    %-27s' % "Force WPAD auth" + disabled_enabled[settings.Config.Force_WPAD_Auth]
+	print '    %-27s' % "Force Basic Auth" + disabled_enabled[settings.Config.Basic]
+	print '    %-27s' % "Force LM downgrade" + disabled_enabled[settings.Config.LM_On_Off == True]
+	print '    %-27s' % "Fingerprint hosts" + disabled_enabled[settings.Config.Finger_On_Off == True]
 	print ""
 
 	print color("[+] ", 2, 1) + "Generic Options:"

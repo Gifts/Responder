@@ -39,7 +39,7 @@ def longueur(payload):
     length = struct.pack(">i", len(''.join(payload)))
     return length
 
-class Packet():
+class Packet:
     fields = OrderedDict([
         ("data", ""),
     ])
@@ -55,22 +55,30 @@ class Packet():
 
 # Function used to write captured hashs to a file.
 def WriteData(outfile, data, user):
-	if not os.path.isfile(outfile):
-		with open(outfile,"w") as outf:
-			outf.write(data + '\n')
-		return
-	with open(outfile,"r") as filestr:
-		if re.search(user.encode('hex'), filestr.read().encode('hex')):
-			return False
-		elif re.search(re.escape("$"), user):
-			return False
-	with open(outfile,"a") as outf2:
-		outf2.write(data + '\n')
+    if not os.path.isfile(outfile):
+        outf = open(outfile,"w")
+        outf.write(data + '\n')
+        outf.close()
+        return
+
+    filestr = open(outfile,"r")
+    try:
+        if re.search(user.encode('hex'), filestr.read().encode('hex')):
+            return False
+        elif re.search(re.escape("$"), user):
+            return False
+    finally:
+        filestr.close()
+
+    outf2 = open(outfile,"a")
+    outf2.write(data + '\n')
+    outf2.close()
 
 #Function used to verify if a previous auth attempt was made.
 def ReadData(Outfile, Client, User, Domain, Target, cmd):
     try:
-        with open(Logs_Path+"logs/"+Outfile,"r") as filestr:
+        filestr = open(Logs_Path+"logs/"+Outfile,"r")
+        try:
             Login = Client+":"+User+":"+Domain+":"+Target+":Logon Failure"
             if re.search(Login.encode('hex'), filestr.read().encode('hex')):
                 print "[+] User %s\\%s previous login attempt returned logon_failure. Not forwarding anymore to prevent account lockout\n"%(Domain,User)
@@ -78,6 +86,8 @@ def ReadData(Outfile, Client, User, Domain, Target, cmd):
 
             else:
                 return False
+        finally:
+            filestr.close()
     except:
         raise
 
@@ -267,8 +277,9 @@ def GetReadableSize(size,precision=2):
     return "%.*f%s"%(precision,size,suffixes[suffixIndex])
 
 def WriteOutputToFile(data, File):
-    with open(SaveSam_Path+"/"+File, "wb") as file:
-        file.write(data)
+    file = open(SaveSam_Path+"/"+File, "wb")
+    file.write(data)
+    file.close()
 
 ##This function is one of the main SMB read function. We request all the time 65520 bytes to the server. 
 #Add (+32 (SMBHeader) +4 Netbios Session Header + 27 for the ReadAndx structure) +63 and you end up with 65583.

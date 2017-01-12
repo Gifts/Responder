@@ -144,8 +144,10 @@ def ServeOPTIONS(data):
 	return False
 
 def ServeFile(Filename):
-	with open (Filename, "rb") as bk:
-		return bk.read()
+	bk = open(Filename, "rb")
+	data = bk.read()
+	bk.close()
+	return data
 
 def RespondWithFile(client, filename, dlname=None):
 	

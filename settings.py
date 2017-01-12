@@ -22,6 +22,35 @@ from utils import *
 
 __version__ = 'Responder 2.3.3.2'
 
+# Backport (monkeypatch) check_output and CalledProcessError
+if not hasattr(subprocess, 'CalledProcessError'):
+	class CalledProcessError(Exception):
+		def __init__(self, returncode, cmd, output=None):
+			self.returncode = returncode
+			self.cmd = cmd
+			self.output = output
+
+		def __str__(self):
+			return "Command '%s' returned non-zero exit status %d" % (self.cmd, self.returncode)
+
+	subprocess.CalledProcessError = CalledProcessError
+
+if not hasattr(subprocess, 'check_output'):
+	def check_output(*popenargs, **kwargs):
+		if 'stdout' in kwargs:
+			raise ValueError('stdout argument not allowed, it will be overridden.')
+		process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+		output, unused_err = process.communicate()
+		retcode = process.poll()
+		if retcode:
+			cmd = kwargs.get("args")
+			if cmd is None:
+				cmd = popenargs[0]
+			raise subprocess.CalledProcessError(retcode, cmd, output=output)
+		return output
+
+	subprocess.check_output = check_output
+
 class Settings:
 	
 	def __init__(self):
@@ -229,17 +258,17 @@ class Settings:
                 
 		try:
 			NetworkCard = subprocess.check_output(["ifconfig", "-a"])
-		except subprocess.CalledProcessError as ex:
+		except Exception,ex:
 			NetworkCard = "Error fetching Network Interfaces:", ex
 			pass
 		try:
 			DNS = subprocess.check_output(["cat", "/etc/resolv.conf"])
-		except subprocess.CalledProcessError as ex:
+		except subprocess.CalledProcessError,ex:
 			DNS = "Error fetching DNS configuration:", ex
 			pass
 		try:
 			RoutingInfo = subprocess.check_output(["netstat", "-rn"])
-		except subprocess.CalledProcessError as ex:
+		except subprocess.CalledProcessError,ex:
 			RoutingInfo = "Error fetching Routing information:", ex
 			pass
 
@@ -247,7 +276,7 @@ class Settings:
 		try:
 			utils.DumpConfig(self.ResponderConfigDump, Message)
 			utils.DumpConfig(self.ResponderConfigDump,str(self))
-		except AttributeError as ex:
+		except AttributeError, ex:
 			print "Missing Module:", ex
 			pass
 

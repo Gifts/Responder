@@ -222,7 +222,10 @@ class DHCPInformACK(Packet):
 		self.fields["Op252Len"] = struct.pack(">b",len(str(self.fields["Op252Str"])))
 
 def SpoofIP(Spoof):
-	return ROUTERIP if Spoof else Responder_IP
+	if Spoof:
+		return ROUTERIP
+	else:
+		return Responder_IP
 
 def RespondToThisIP(ClientIp):
 	if ClientIp.startswith('127.0.0.'):

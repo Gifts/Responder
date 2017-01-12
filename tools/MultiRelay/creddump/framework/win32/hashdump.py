@@ -176,11 +176,20 @@ def get_user_hashes(user_key, hbootkey):
 
     hash_offset = unpack("<L", V[0x9c:0x9c+4])[0] + 0xCC
 
-    lm_exists = True if unpack("<L", V[0x9c+4:0x9c+8])[0] == 20 else False
-    nt_exists = True if unpack("<L", V[0x9c+16:0x9c+20])[0] == 20 else False
+    lm_exists = unpack("<L", V[0x9c+4:0x9c+8])[0] == 20
+    nt_exists = unpack("<L", V[0x9c+16:0x9c+20])[0] == 20
 
-    enc_lm_hash = V[hash_offset+4:hash_offset+20] if lm_exists else ""
-    enc_nt_hash = V[hash_offset+(24 if lm_exists else 8):hash_offset+(24 if lm_exists else 8)+16] if nt_exists else ""
+    if lm_exists:
+        enc_lm_hash = V[hash_offset+4:hash_offset+20]
+        lm_hash_offset = 24
+    else:
+        enc_lm_hash = ""
+        lm_hash_offset = 8
+
+    if nt_exists:
+        enc_nt_hash = V[hash_offset+lm_hash_offset:hash_offset+lm_hash_offset+16]
+    else:
+        enc_nt_hash = ""
 
     return decrypt_hashes(rid, enc_lm_hash, enc_nt_hash, hbootkey)
 

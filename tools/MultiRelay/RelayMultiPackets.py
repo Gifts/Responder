@@ -20,7 +20,7 @@ from odict import OrderedDict
 import datetime
 from base64 import b64decode, b64encode
 
-class Packet():
+class Packet:
     fields = OrderedDict([
         ("data", ""),
     ])
